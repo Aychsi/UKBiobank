@@ -1,0 +1,61 @@
+---
+title: "HealthyUnhealthySplit"
+output: html_document
+date: "2024-05-28"
+---
+
+This file separates all participants who are healthy and unhealthy. Meant to be merged with 
+brain age and bio age participants.
+
+# Source and read in data
+```{r}
+source("init.r")
+healthy_unhealthy_final <- read.csv(paste0(root, "data/Healthy_Unhealthy_final.csv"))
+healthy_unhealthy_Age <- read.csv(paste0(root, "data/Healthy_Unhealthy_Age.csv"))
+
+healthy_unhealthy <- merge(healthy_unhealthy_final, 
+                           healthy_unhealthy_Age %>% dplyr::select(eid, p21003_i0:p21003_i3),
+                           by = "eid")
+
+skim(healthy_unhealthy)
+```
+
+codebook:
+eid - Participant ID
+p20008_i3_a14 - non-cancer illness instance 3
+p134_i0 - self-reported cancers instance 0
+p134_i1 - self-reported cancers instance 1
+p134_i2 - self-reported cancers instance 2
+p134_i3 - self-reported cancers instance 3
+p135_i0 - non-cancer illnesses instance 0
+p135_i1 - non-cancer illnesses instance 1
+p135_i2 - non-cancer illnesses instance 2 
+p135_i3 - non-cancer illnesses instance 3 
+p31 - Sex
+
+# Find all healthy at instance 1
+Should have had no cases at any instance before instance 1 as well
+```{r}
+skim(healthy_unhealthy$p134_i1) # Complete rate is very low for instance 1
+
+healthy_unhealthy
+# Healthy at instance 0
+healthy_0 <- healthy_unhealthy %>% 
+  dplyr::filter(p134_i0 == 0 & p135_i0 == 0)
+
+# unhealthy at instance 0 
+unhealthy_0 <- healthy_unhealthy %>% 
+  dplyr::filter(p134_i0 > 0 | p135_i0 > 0)
+
+nrow(healthy_0) # 117620
+nrow(unhealthy_0) # 383881
+```
+
+More are unhealthy than healthy. 
+
+
+
+
+
+
+

@@ -1,0 +1,14 @@
+---
+title: "MRI_Summary_Stats"
+output: html_document
+date: "2024-09-13"
+---
+
+# Source and packages
+```{r}
+source("init.r")
+
+```
+
+
+

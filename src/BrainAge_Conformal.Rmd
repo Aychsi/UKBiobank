@@ -1,0 +1,127 @@
+---
+title: "BrainAge_Conformal"
+output: html_document
+date: "2024-05-29"
+---
+
+
+# Data Preparation
+```{r}
+# Load and preprocess your data
+source("init.r")
+
+gmv_1 <- read.csv(paste0(root, "data/gmv_1.csv"))
+gmv_2 <- read.csv(paste0(root, "data/gmv_2.csv"))
+subcort_gmv <- read.csv(paste0(root, "data/subcort_gmv_inst2.csv"))
+
+gmv12 <- merge(gmv_1, gmv_2, by = "eid")
+subcort_gmv <- subcort_gmv %>% dplyr::select(-p25013_i3)  # Remove columns with too many missing values
+gmv_all <- merge(subcort_gmv, gmv12, by = "eid")
+gmv_all_noNA <- gmv_all %>% filter(complete.cases(.))
+
+# Remove columns ending with .y and rename columns ending with .x
+gmv_all_noNA <- gmv_all_noNA %>%
+  dplyr::select(-matches("\\.y$")) %>%
+  rename_with(~ gsub("\\.x$", "", .), matches("\\.x$"))
+
+
+# Load healthy/unhealthy data
+healthy_unhealthy <- read.csv(paste0(root, "data/Healthy_Unhealthy_final.csv"))
+
+# Merge healthy/unhealthy data with GMV data
+gmv_healthy <- merge(gmv_all_noNA, healthy_0, by = "eid")
+gmv_unhealthy <- merge(gmv_all_noNA, unhealthy_0, by = "eid")
+
+# Split the data into training and test sets for healthy participants
+set.seed(18)
+data_split <- initial_split(gmv_healthy, prop = 0.8)
+train_data <- training(data_split)
+test_data <- testing(data_split)
+
+
+```
+
+
+# Model Training and CV
+```{r}
+# Create a recipe for preprocessing with step_zv to remove zero variance columns
+brain_age_recipe <- recipe(p21022 ~ ., data = train_data) %>%
+  step_rm(p31) %>%
+  step_zv(all_predictors()) %>%  # Remove zero variance predictors
+  step_normalize(all_predictors())
+
+# Define model specifications with the correct mode
+ridge_spec <- linear_reg(penalty = tune(), mixture = 0) %>%
+  set_engine("glmnet") %>%
+  set_mode("regression")
+
+svr_spec <- svm_rbf(cost = tune(), rbf_sigma = tune()) %>%
+  set_engine("kernlab") %>%
+  set_mode("regression")
+
+gpr_spec <- nearest_neighbor(neighbors = tune()) %>%
+  set_engine("kknn") %>%
+  set_mode("regression")
+
+# Create workflows for each model
+ridge_workflow <- workflow() %>%
+  add_recipe(brain_age_recipe) %>%
+  add_model(ridge_spec)
+
+svr_workflow <- workflow() %>%
+  add_recipe(brain_age_recipe) %>%
+  add_model(svr_spec)
+
+gpr_workflow <- workflow() %>%
+  add_recipe(brain_age_recipe) %>%
+  add_model(gpr_spec)
+
+# Define grids for hyperparameter tuning
+ridge_grid <- expand_grid(penalty = seq(0, 0.1, by = 0.01))
+svr_grid <- expand_grid(cost = 2^(-5:2), rbf_sigma = 2^(-5:2))
+gpr_grid <- expand_grid(neighbors = seq(1, 20, by = 1))
+
+# Tune models and fit the best model
+set.seed(18)
+ridge_tune <- tune_grid(
+  ridge_workflow,
+  resamples = vfold_cv(train_data, v = 5),
+  grid = ridge_grid
+)
+
+svr_tune <- tune_grid(
+  svr_workflow,
+  resamples = vfold_cv(train_data, v = 5),
+  grid = svr_grid
+)
+
+gpr_tune <- tune_grid(
+  gpr_workflow,
+  resamples = vfold_cv(train_data, v = 5),
+  grid = gpr_grid
+)
+
+# Select the best hyperparameters
+best_ridge_params <- select_best(ridge_tune, metric = "rmse")
+best_svr_params <- select_best(svr_tune, metric = "rmse")
+best_gpr_params <- select_best(gpr_tune, metric = "rmse")
+
+# Finalize the workflows with the best parameters
+best_ridge <- finalize_workflow(ridge_workflow, best_ridge_params)
+best_svr <- finalize_workflow(svr_workflow, best_svr_params)
+best_gpr <- finalize_workflow(gpr_workflow, best_gpr_params)
+
+# Fit the final models
+ridge_fit <- fit(best_ridge, data = train_data)
+svr_fit <- fit(best_svr, data = train_data)
+gpr_fit <- fit(best_gpr, data = train_data)
+
+
+
+
+```
+
+
+
+
+

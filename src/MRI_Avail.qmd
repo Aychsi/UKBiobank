@@ -1,0 +1,21 @@
+---
+title: "MRI_Avail"
+format:
+  html: 
+    theme: cosmo
+    fontsize: 1.1em
+    linestretch: 1.7
+toc: true
+editor: visual
+---
+
+
+
+
+
+
+
+
+
+
+

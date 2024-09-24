@@ -1,0 +1,264 @@
+---
+title: "BioAge"
+output: html_document
+date: "2024-05-29"
+---
+
+
+This file calculates the brain age for GMV at instance 2
+
+# Read in Data and Source
+```{r}
+source("init.r")
+
+bioage_df <- read.csv(paste0(root, "data/BioAge_all.csv"))
+
+
+healthy_unhealthy <- read.csv(paste0(root, "data/Healthy_Unhealthy_Age.csv"))
+
+
+```
+
+# Remove Columns that have more than 30% missing
+```{r}
+skim(bioage_df)
+
+# Calculate the threshold for missing values (30% of the total number of rows)
+threshold <- 0.3 * nrow(bioage_df)
+
+# Select columns that have fewer than the threshold number of missing values
+bioage_df_filtered <- bioage_df %>%
+  dplyr::select(where(~ sum(is.na(.)) <= threshold))
+
+bioage_df_filtered_noNA <- bioage_df_filtered %>% filter(complete.cases(.))
+
+```
+
+# Find column names and make codebook
+```{r}
+colnames(bioage_df_filtered_noNA)
+
+```
+
+# Merge with healthy_unhealthy
+```{r}
+bioage_healthy <- merge(bioage_df_filtered_noNA, healthy_0, by = "eid")
+bioage_unhealthy <- merge(bioage_df_filtered_noNA, unhealthy_0, by = "eid")
+
+nrow(bioage_healthy) # 40757
+nrow(bioage_unhealthy) # 119955
+
+table(bioage_healthy$p31)
+table(bioage_unhealthy$p31) # 119955
+```
+
+
+# Visualize ROIs
+```{r}
+# Function to create scatterplot with r value
+create_scatterplot <- function(data, age_col, bbb_col) {
+  correlation <- cor(data[[age_col]], data[[bbb_col]], use = "complete.obs")
+  plot <- ggplot(data, aes_string(x = age_col, y = bbb_col)) +
+    geom_point(alpha = 0.5) +
+    geom_smooth(method = "lm", se = FALSE, color = "blue") +
+    labs(title = paste("Scatterplot of", bbb_col, "vs", age_col),
+         subtitle = paste("r =", round(correlation, 2)),
+         x = "Chronological Age",
+         y = bbb_col) +
+    theme_minimal()
+  return(plot)
+}
+
+bbb_cols <- bioage_healthy %>% dplyr::select(p4079_i0_a0:p30850_i0) %>% names()
+
+# Create and display all scatterplots
+scatterplots <- map(bbb_cols, ~ create_scatterplot(bioage_healthy, "p21003_i0", .x))
+print(scatterplots)
+```
+
+
+
+
+# Train Test Split for Healthy and Define Train Control
+```{r}
+set.seed(18)
+trainIndex <- createDataPartition(bioage_healthy$p21003_i0, p = 0.8, list = FALSE)
+trainData <- bioage_healthy[trainIndex,]
+testData <- bioage_healthy[-trainIndex,]
+
+
+
+# Select only age and GMV columns
+trainData <- trainData %>% dplyr::select(p21003_i0, p31, p4079_i0_a0:p30850_i0)
+testData <- testData %>% dplyr::select(p21003_i0, p31, p4079_i0_a0:p30850_i0)
+
+trainData <- na.omit(trainData)
+testData <- na.omit(testData)
+
+nrow(trainData) # 32607
+nrow(testData) # 8150
+
+range(trainData$p21022)
+
+```
+
+# Define Train Control and nested-cross validation
+```{r}
+
+# Define the grids for hyperparameter tuning
+ridge_grid <- expand.grid(.lambda = seq(0, 0.1, by = 0.01))
+svr_grid <- expand.grid(.C = 2^(-5:2), .sigma = 2^(-5:2))
+
+# Register parallel backend
+cl <- makePSOCKcluster(detectCores() - 1)  # Use one less core than available
+registerDoParallel(cl)
+
+# Define training control for inner and outer cross-validation with parallel processing
+inner_train_control <- trainControl(method = "cv", number = 3, allowParallel = TRUE)
+outer_train_control <- trainControl(method = "cv", number = 10, savePredictions = "final", allowParallel = TRUE)
+
+
+nested_cv_bioage <- function(data, method, tuneGrid, inner_train_control, outer_train_control) {
+  # Create a progress bar
+  pb <- progress_bar$new(
+    format = "  [:bar] :percent eta: :eta",
+    total = 10,  # Number of outer folds
+    width = 60
+  )
+  
+  # Outer loop cross-validation
+  outer_cv_results <- lapply(1:10, function(i) {
+    print(i)
+    # Update progress bar
+    pb$tick()
+    
+    # Split the data into training and testing sets
+    trainIndex <- createDataPartition(data$p21003_i0, p = 0.9, list = FALSE)
+    trainData <- data[trainIndex, ]
+    testData <- data[-trainIndex, ]
+    
+    # Select the desired range of columns and exclude p31
+    selected_columns <- trainData %>%
+      dplyr::select(p21003_i0, p4079_i0_a0:p30850_i0) %>%
+      names()
+    
+    # Create the formula
+    formula <- as.formula(paste("p21003_i0 ~", paste(selected_columns[-1], collapse = " + ")))
+    
+    # Inner loop cross-validation for hyperparameter tuning
+    model <- caret::train(
+      formula, data = trainData,
+      method = method,
+      trControl = inner_train_control,
+      tuneGrid = tuneGrid,
+      preProcess = c("center", "scale")
+    )
+    
+    # Predict on the training set to fit the extended model
+    trainData$predicted_bioage <- predict(model, newdata = trainData)
+    
+    # Fit the extended model (Formula 2) on the training set
+    extended_model <- lm(predicted_bioage ~ p21003_i0 + I(p21003_i0^2) + p31 + p31:p21003_i0 + p31:I(p21003_i0^2), data = trainData)
+    
+    # Predict on the test set
+    testData$predicted_bioage <- predict(model, newdata = testData)
+    
+    # Predict corrected brain age on the test set using the extended model
+    testData$corrected_bioage <- predict(extended_model, newdata = testData)
+    
+    # Calculate the corrected brain age gap
+    testData$corrected_bio_age_gap <- testData$corrected_bioage - testData$p21003_i0
+    
+    # Calculate performance metrics
+    performance <- postResample(testData$corrected_bioage, testData$p21003_i0)
+    
+    # Store the best hyperparameters
+    best_params <- model$bestTune
+    
+    return(list(performance = performance, best_params = best_params))
+  })
+  
+  return(outer_cv_results)
+}
+
+
+# Aggregate results and store best hyperparameters
+aggregate_results <- function(cv_results) {
+  performance_metrics <- do.call(rbind, lapply(cv_results, function(x) x$performance))
+  best_hyperparams <- do.call(rbind, lapply(cv_results, function(x) x$best_params))
+  
+  return(list(performance_metrics = performance_metrics, best_hyperparams = best_hyperparams))
+}
+
+```
+
+
+# Model Implementations
+## Ridge Regression
+```{r}
+
+# Perform nested cross-validation for Ridge Regression
+set.seed(18)
+ridge_nested_cv_bioage <- nested_cv_bioage(trainData, "ridge", ridge_grid, inner_train_control, outer_train_control)
+
+# Aggregate results
+ridge_aggregate_results_bioage <- aggregate_results(ridge_nested_cv_bioage)
+ridge_aggregate_results_bioage
+
+# Save the ridge_nested_cv and ridge_aggregate_results objects to an RData file
+save(ridge_nested_cv_bioage, ridge_aggregate_results_bioage, 
+     file = paste0(root,"data/ridge_nested_cv_results_bioage.RData"))
+```
+
+
+## Support Vector Regression (SVR)
+NB: Takes a while to run
+```{r}
+set.seed(18)
+
+svr_nested_cv_bioage <- nested_cv_bioage(trainData, "svmRadial", svr_grid, inner_train_control, outer_train_control)
+
+# Aggregate results
+svr_aggregate_results_bioage <- aggregate_results(svr_nested_cv_bioage)
+svr_aggregate_results_bioage
+
+# Save the ridge_nested_cv and ridge_aggregate_results objects to an RData file
+save(svr_nested_cv_bioage, svr_aggregate_results_bioage, 
+     file = paste0(root,"data/svr_nested_cv_results_bioage.RData"))
+```
+
+
+## Gaussian Process Regression (GPR)
+```{r}
+
+gpr_nested_cv <- nested_cv(trainData, "gaussprRadial", NULL, inner_train_control, outer_train_control)
+
+# Print results
+gpr_results <- aggregate_results(gpr_nested_cv)
+print(gpr_results$performance_metrics)
+print(gpr_results$best_hyperparams)
+
+
+# Save the ridge_nested_cv and ridge_aggregate_results objects to an RData file
+save(gpr_nested_cv, gpr_results, file = paste0(root,"data/gpr_nested_cv_results.RData"))
+
+stopCluster(cl)
+```
+
+
+
+```{r}
+load("/Users/hansoochang/Drexel/UKBiobank/data/ridge_nested_cv_results.RData")
+load("/Users/hansoochang/Drexel/UKBiobank/data/svr_nested_cv_results.RData")
+```
+
+
+
+
+
+
+
+
+
+
+
