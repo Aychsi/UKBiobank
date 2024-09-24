@@ -1,0 +1,82 @@
+---
+title: "BrainAge_Conformal"
+output: html_document
+date: "2024-05-29"
+---
+
+
+# Data Preparation
+```{r}
+# Load and preprocess your data
+source("init.r")
+
+gmv_1 <- read.csv(paste0(root, "data/gmv_1.csv"))
+gmv_2 <- read.csv(paste0(root, "data/gmv_2.csv"))
+subcort_gmv <- read.csv(paste0(root, "data/subcort_gmv_inst2.csv"))
+
+gmv12 <- merge(gmv_1, gmv_2, by = "eid")
+subcort_gmv <- subcort_gmv %>% dplyr::select(-p25013_i3)  # Remove columns with too many missing values
+gmv_all <- merge(subcort_gmv, gmv12, by = "eid")
+gmv_all_noNA <- gmv_all %>% filter(complete.cases(.))
+
+# Remove columns ending with .y and rename columns ending with .x
+gmv_all_noNA <- gmv_all_noNA %>%
+  dplyr::select(-matches("\\.y$")) %>%
+  rename_with(~ gsub("\\.x$", "", .), matches("\\.x$"))
+
+# Load healthy/unhealthy data
+healthy_unhealthy <- read.csv(paste0(root, "data/Healthy_Unhealthy_final.csv"))
+
+# Merge healthy/unhealthy data with GMV data
+gmv_healthy <- merge(gmv_all_noNA, healthy_unhealthy[healthy_unhealthy$status == "healthy", ], by = "eid")
+gmv_unhealthy <- merge(gmv_all_noNA, healthy_unhealthy[healthy_unhealthy$status == "unhealthy", ], by = "eid")
+
+# Split the data into training and test sets for healthy participants
+set.seed(18)
+data_split <- initial_split(gmv_healthy, prop = 0.8)
+train_data <- training(data_split)
+test_data <- testing(data_split)
+
+```
+
+
+# Model Training and CV
+```{r}
+# Create a recipe for preprocessing
+brain_age_recipe <- recipe(p21022 ~ ., data = train_data) %>%
+  step_rm(p31) %>%
+  step_normalize(all_predictors())
+
+# Define model specifications for Ridge, SVR, and GPR
+ridge_spec <- linear_reg(penalty = tune(), mixture = 0) %>%
+  set_engine("glmnet")
+
+svr_spec <- svm_rbf(cost = tune(), rbf_sigma = tune()) %>%
+  set_engine("kernlab")
+
+gpr_spec <- nearest_neighbor(neighbors = tune()) %>%
+  set_engine("kknn")
+
+# Create a workflow
+ridge_workflow <- workflow() %>%
+  add_recipe(brain_age_recipe) %>%
+  add_model(ridge_spec)
+
+svr_workflow <- workflow() %>%
+  add_recipe(brain_age_recipe) %>%
+  add_model(svr_spec)
+
+gpr_workflow <- workflow() %>%
+  add_recipe(brain_age_recipe) %>%
+  add_model(gpr_spec)
+
+# Define resampling strategy for nested cross-validation
+set.seed(18)
+outer_folds <- vfold_cv(train_data, v = 10)
+
+# Register parallel backend
+cl <- makePSOCKcluster(detectCores() - 1)
+registerDoParallel(cl)
+
+```
+
