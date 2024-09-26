@@ -47,11 +47,13 @@ for (i in 1:35) {
   }
 }
 
+# gmv is same as bbb eid since it includes all participants
+gmv_eid_1 <- read.csv(paste0(root, "data/gmv_eid_1.csv"))
+
 # Combine all data frames column-wise
 combined_bbb <- rename_columns(do.call(cbind, data_list))
+combined_bbb <- cbind(gmv_eid_1, combined_bbb)
 
-# View the first few rows of the combined data
-head(combined_bbb)
 
-write.csv(combined_bbb, paste0(root, "data/combined_bbb.csv"))
+write.csv(combined_bbb, paste0(root, "data/combined_bbb.csv"), row.names = FALSE)
 

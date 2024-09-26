@@ -4,4 +4,28 @@ output: html_document
 date: "2024-09-26"
 ---
 
+# Source and packages
+```{r}
+source("init.r")
+
+```
+
+# Read in Data
+```{r}
+combined_gmv <- read.csv(paste0(root, "data/combined_gmv.csv"))
+
+head(combined_gmv)
+
+```
+
+
+
+
+
+
+
+
+
+
+
 

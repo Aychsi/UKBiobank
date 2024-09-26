@@ -10,9 +10,11 @@ gmv_5 <- read.csv(paste0(root, "data/regional_gmv_5.csv"))
 
 
 # Combine the five datasets column-wise using cbind
-combined_gmv <- rename_columns(cbind(gmv_1, gmv_2, gmv_3, gmv_4, gmv_5))
+gmv_eid_1 <- read.csv(paste0(root, "data/gmv_eid_1.csv"))
 
-write.csv(combined_gmv, paste0(root, "data/combined_gmv.csv"))
+combined_gmv <- rename_columns(cbind(gmv_eid_1, gmv_1, gmv_2, gmv_3, gmv_4, gmv_5))
+
+write.csv(combined_gmv, paste0(root, "data/combined_gmv.csv"), row.names = FALSE)
 
 
 
