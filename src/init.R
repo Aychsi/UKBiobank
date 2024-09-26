@@ -3,7 +3,6 @@
 
 root <- "/Users/hansoochang/Drexel/UKBiobank/"
 
-renv::init()
 library(dplyr)
 library(caret)
 library(kernlab)
@@ -27,7 +26,6 @@ library(kknn)
 library(gridExtra)
 library(grid)
 library(renv)
+library(knitr)
 renv::snapshot()
 
-
-head(read.csv("/Users/hansoochang/export_2.csv"))

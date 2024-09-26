@@ -8,7 +8,77 @@ date: "2024-09-13"
 ```{r}
 source("init.r")
 
+
 ```
+
+
+# Read in Data
+```{r}
+combined_gmv <- read.csv(paste0(root, "data/combined_gmv.csv"))
+
+head(combined_gmv)
+
+```
+
+# Split into Instances
+```{r}
+gmv_i2 <- split_by_instance(combined_gmv)$instance_2
+gmv_i3 <- split_by_instance(combined_gmv)$instance_3
+
+```
+
+# Get Summary Statistics
+
+## See how many participants have both instance 2 and 3
+```{r}
+
+# Assuming df1 and df2 are your dataframes and the common column name is "column_name"
+
+# Filter out rows where any column in either df1 or df2 has missing values
+df1_filtered <- gmv_i2 %>% filter(complete.cases(.))
+df2_filtered <- gmv_i3 %>% filter(complete.cases(.))
+
+# Only keep rows where both df1 and df2 have complete cases
+complete_cases <- complete.cases(gmv_i2, gmv_i3)
+
+# Filter both dataframes to keep only the rows where all columns are complete in both dataframes
+df1_complete <- gmv_i2[complete_cases, ]
+df2_complete <- gmv_i3[complete_cases, ]
+
+# Find common values between the specific columns from both dataframes
+common_values <- intersect(df1_complete$participant.eid, df2_complete$participant.eid)
+
+# Output the result
+if(length(common_values) > 0) {
+  print("Common values found:")
+  print(common_values)
+} else {
+  print("No common values found.")
+}
+
+```
+
+
+## Instance 2
+```{r}
+i2_skim <- skim(gmv_i2) %>%
+  mutate(across(where(is.numeric), ~ round(., 3))) %>%
+  mutate(non_missing = nrow(gmv_i2) - n_missing)  # Add non-missing count
+
+i2_skim
+```
+
+## Instance 3
+```{r}
+i3_skim <- skim(gmv_i3) %>%
+  mutate(across(where(is.numeric), ~ round(., 3))) %>%
+  mutate(non_missing = nrow(gmv_i2) - n_missing)  # Add non-missing count
+
+i3_skim
+```
+
+
+
 
 
 
