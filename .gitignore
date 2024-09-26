@@ -1,5 +1,6 @@
-/Users/hansoochang/Drexel/UKBiobank/txt_files
-/Users/hansoochang/Drexel/UKBiobank/renv
-/Users/hansoochang/Drexel/UKBiobank/renv.lock
-/Users/hansoochang/Drexel/UKBiobank/data
-/Users/hansoochang/Drexel/UKBiobank/exported_data
+txt_files/
+renv/
+renv.lock/
+data/
+exported_data/
+.Rproj.user/
