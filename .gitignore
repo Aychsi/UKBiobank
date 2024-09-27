@@ -6,3 +6,18 @@ exported_data/
 .Rproj.user/
 src/renv.lock/
 src/renv/
+
+# Ignore R-specific files
+.RData
+.Rhistory
+.Rprofile
+
+# Ignore specific files in the src folder
+src/.Rhistory
+src/.Rprofile
+src/renv.lock
+src/src.Rproj
+
+# Ignore the renv directory
+renv/
+src/renv/

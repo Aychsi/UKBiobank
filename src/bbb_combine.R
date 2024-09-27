@@ -54,6 +54,12 @@ gmv_eid_1 <- read.csv(paste0(root, "data/gmv_eid_1.csv"))
 combined_bbb <- rename_columns(do.call(cbind, data_list))
 combined_bbb <- cbind(gmv_eid_1, combined_bbb)
 
+# Remove unnecessary columns
+combined_bbb <- combined_bbb %>%
+  dplyr::select(-contains(c("device ID", "reason", "correction", "reportability", "date", 
+                            "aliquot", "factor", "route", "time", "cycles", "method")))
+
+colnames(combined_bbb)
 
 write.csv(combined_bbb, paste0(root, "data/combined_bbb.csv"), row.names = FALSE)
 

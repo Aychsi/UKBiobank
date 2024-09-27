@@ -12,9 +12,9 @@ source("init.r")
 
 # Read in Data
 ```{r}
-combined_gmv <- read.csv(paste0(root, "data/combined_gmv.csv"))
+combined_bbb <- read.csv(paste0(root, "data/combined_bbb.csv"))
 
-head(combined_gmv)
+head(combined_bbb)
 
 ```
 

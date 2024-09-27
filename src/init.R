@@ -3,6 +3,8 @@
 
 root <- "/Users/hansoochang/Drexel/UKBiobank/"
 
+# Run this code if it is first time to initialize renv in local directory
+# renv::init()
 library(dplyr)
 library(caret)
 library(kernlab)
@@ -27,5 +29,7 @@ library(gridExtra)
 library(grid)
 library(renv)
 library(knitr)
-renv::snapshot()
+
+# Run this anytime a new package is added
+# renv::snapshot()
 
