@@ -18,9 +18,21 @@ head(combined_bbb)
 
 ```
 
+# Check how many participants have complete data
+```{r}
+combined_bbb %>%
+  filter(complete.cases(.))
 
+```
 
+# Split by Instances and skim()
+```{r}
+split_by_instance(combined_bbb)$instance_0 %>% skim_with_available()
+split_by_instance(combined_bbb)$instance_1 %>% skim_with_available()
+split_by_instance(combined_bbb)$instance_2 %>% skim_with_available()
+split_by_instance(combined_bbb)$instance_3 %>% skim_with_available()
 
+```
 
 
 

@@ -47,17 +47,18 @@ for (i in 1:35) {
   }
 }
 
+
 # gmv is same as bbb eid since it includes all participants
 gmv_eid_1 <- read.csv(paste0(root, "data/gmv_eid_1.csv"))
 
 # Combine all data frames column-wise
-combined_bbb <- rename_columns(do.call(cbind, data_list))
+combined_bbb <- rename_columns(do.call(cbind, data_list), paste0(root, "data/app96818_20230711234353.dataset.data_dictionary.csv"))
 combined_bbb <- cbind(gmv_eid_1, combined_bbb)
 
 # Remove unnecessary columns
 combined_bbb <- combined_bbb %>%
   dplyr::select(-contains(c("device ID", "reason", "correction", "reportability", "date", 
-                            "aliquot", "factor", "route", "time", "cycles", "method")))
+                            "aliquot", "factor", "route", "time", "cycles", "method", "array")))
 
 colnames(combined_bbb)
 
